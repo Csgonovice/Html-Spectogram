@@ -1,54 +1,121 @@
-<header>
-
-<!--
-  <<< Author notes: Course header >>>
-  Include a 1280×640 image, course title in sentence case, and a concise description in emphasis.
-  In your repository settings: enable template repository, add your 1280×640 social image, auto delete head branches.
-  Add your open source license, GitHub uses MIT license.
--->
-
-# GitHub Pages
-
-_Create a site or blog from your GitHub repositories with GitHub Pages._
-
-</header>
-
-<!--
-  <<< Author notes: Step 1 >>>
-  Choose 3-5 steps for your course.
-  The first step is always the hardest, so pick something easy!
-  Link to docs.github.com for further explanations.
-  Encourage users to open new tabs for steps!
--->
-
-## Step 1: Enable GitHub Pages
-
-_Welcome to GitHub Pages and Jekyll :tada:!_
-
-The first step is to enable GitHub Pages on this [repository](https://docs.github.com/en/get-started/quickstart/github-glossary#repository). When you enable GitHub Pages on a repository, GitHub takes the content that's on the main branch and publishes a website based on its contents.
-
-### :keyboard: Activity: Enable GitHub Pages
-
-1. Open a new browser tab, and work on the steps in your second tab while you read the instructions in this tab.
-1. Under your repository name, click **Settings**.
-1. Click **Pages** in the **Code and automation** section.
-1. Ensure "Deploy from a branch" is selected from the **Source** drop-down menu, and then select `main` from the **Branch** drop-down menu.
-1. Click the **Save** button.
-1. Wait about _one minute_ then refresh this page (the one you're following instructions from). [GitHub Actions](https://docs.github.com/en/actions) will automatically update to the next step.
-   > Turning on GitHub Pages creates a deployment of your repository. GitHub Actions may take up to a minute to respond while waiting for the deployment. Future steps will be about 20 seconds; this step is slower.
-   > **Note**: In the **Pages** of **Settings**, the **Visit site** button will appear at the top. Click the button to see your GitHub Pages site.
-
-<footer>
-
-<!--
-  <<< Author notes: Footer >>>
-  Add a link to get support, GitHub status page, code of conduct, license link.
--->
-
----
-
-Get help: [Post in our discussion board](https://github.com/orgs/skills/discussions/categories/github-pages) &bull; [Review the GitHub status page](https://www.githubstatus.com/)
-
-&copy; 2023 GitHub &bull; [Code of Conduct](https://www.contributor-covenant.org/version/2/1/code_of_conduct/code_of_conduct.md) &bull; [MIT License](https://gh.io/mit)
-
-</footer>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Audio Spectrogram</title>
+    <style>
+        body { margin: 0; background: black; overflow: hidden; display: flex; justify-content: center; align-items: center; height: 100vh; }
+        button { font-size: 20px; padding: 10px 20px; cursor: pointer; position: relative; z-index: 1; }
+        canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
+        #hzDisplay { position: absolute; top: 10px; right: 10px; color: white; font-size: 16px; font-family: Arial, sans-serif; }
+        #loopToggle { position: absolute; top: 10px; left: 10px; color: white; font-size: 10px; font-family: Arial, sans-serif; cursor: pointer; }
+        #spectrogramToggle { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); color: white; font-size: 10px; font-family: Arial, sans-serif; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <button id="selectFile">Select MP3</button>
+    <input type="file" id="fileInput" accept="audio/mp3" style="display: none;">
+    <canvas id="spectrogram"></canvas>
+    <div id="hzDisplay">Hz: 0</div>
+    <div id="loopToggle">Loop: OFF</div>
+    <div id="spectrogramToggle">Spectrogram: ON</div>
+    
+    <script>
+        const button = document.getElementById('selectFile');
+        const fileInput = document.getElementById('fileInput');
+        const canvas = document.getElementById('spectrogram');
+        const ctx = canvas.getContext('2d');
+        const hzDisplay = document.getElementById('hzDisplay');
+        const loopToggle = document.getElementById('loopToggle');
+        const spectrogramToggle = document.getElementById('spectrogramToggle');
+        let audioContext, analyser, source, gainNode, audio;
+        let isLooping = false;
+        let isSpectrogramVisible = true;
+        
+        button.addEventListener('click', () => fileInput.click());
+        fileInput.addEventListener('change', event => {
+            if (event.target.files.length > 0) {
+                button.remove();
+                playAudio(event.target.files[0]);
+            }
+        });
+        
+        loopToggle.addEventListener('click', () => {
+            isLooping = !isLooping;
+            loopToggle.textContent = `Loop: ${isLooping ? 'ON' : 'OFF'}`;
+            if (audio) {
+                audio.loop = isLooping;
+            }
+        });
+        
+        spectrogramToggle.addEventListener('click', () => {
+            isSpectrogramVisible = !isSpectrogramVisible;
+            spectrogramToggle.textContent = `Spectrogram: ${isSpectrogramVisible ? 'ON' : 'OFF'}`;
+            canvas.style.display = isSpectrogramVisible ? 'block' : 'none';
+        });
+        
+        function playAudio(file) {
+            const objectURL = URL.createObjectURL(file);
+            audio = new Audio(objectURL);
+            audio.autoplay = true;
+            audio.loop = isLooping;
+            
+            audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            analyser = audioContext.createAnalyser();
+            analyser.fftSize = 2048;
+            
+            gainNode = audioContext.createGain();
+            gainNode.gain.value = 1.5; // Increase volume slightly
+            
+            source = audioContext.createMediaElementSource(audio);
+            source.connect(gainNode);
+            gainNode.connect(analyser);
+            analyser.connect(audioContext.destination);
+            
+            resizeCanvas();
+            drawSpectrogram();
+        }
+        
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        
+        function drawSpectrogram() {
+            const bufferLength = analyser.frequencyBinCount;
+            const dataArray = new Uint8Array(bufferLength);
+            
+            function render() {
+                if (!isSpectrogramVisible) {
+                    requestAnimationFrame(render);
+                    return;
+                }
+                analyser.getByteFrequencyData(dataArray);
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.1)';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                
+                const barWidth = (canvas.width / bufferLength) * 2.5;
+                let x = 0;
+                let maxFrequency = 0;
+                
+                for (let i = 0; i < bufferLength; i++) {
+                    const barHeight = dataArray[i] * 2;
+                    if (dataArray[i] > maxFrequency) {
+                        maxFrequency = dataArray[i];
+                    }
+                    ctx.fillStyle = `hsl(${(i / bufferLength) * 360}, 100%, 50%)`;
+                    ctx.fillRect(x, canvas.height - barHeight, barWidth, barHeight);
+                    x += barWidth + 1;
+                }
+                
+                hzDisplay.textContent = `Hz: ${maxFrequency}`;
+                requestAnimationFrame(render);
+            }
+            render();
+        }
+        
+        window.addEventListener('resize', resizeCanvas);
+    </script>
+</body>
+</html>
